@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "date": "2026-07-11",
+  "prev": null,
+  "next": {"sterbetag": "2026-07-14"},
+  "notices": [
+    {
+      "id": 100000,
+      "vname": "Erika",
+      "nname": "Musterfrau",
+      "sterbetag": "2026-07-11",
+      "wohnort": "Beispielort",
+      "weitere_orte": "",
+      "notice_text": "In liebevoller Erinnerung an Erika Musterfrau aus Beispielort."
+    }
+  ]
+}

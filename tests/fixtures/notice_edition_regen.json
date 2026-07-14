@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "date": "2026-07-14",
+  "prev": {"sterbetag": "2026-07-11"},
+  "next": null,
+  "notices": [
+    {
+      "id": 100001,
+      "vname": "Max",
+      "nname": "Mustermann",
+      "sterbetag": "2026-07-14",
+      "wohnort": "Fiktingen/Beispielstadt, zuletzt Musterhausen",
+      "weitere_orte": "",
+      "notice_text": "In liebevoller Erinnerung an Max Mustermann, aus Fiktingen/Beispielstadt, zuletzt Musterhausen."
+    }
+  ]
+}
