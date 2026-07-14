@@ -1,6 +1,6 @@
 import pytest
 
-from pnp_watcher.notifier import TelegramNotifier, format_digest
+from pnp_watcher.notifier import EmailNotifier, TelegramNotifier, format_digest
 
 
 def make_notice(id=1, vname="Max", nname="Mustermann", wohnort="Fiktingen", sterbetag="2026-07-14"):
@@ -93,3 +93,66 @@ def test_telegram_notifier_raises_on_http_error():
 
     with pytest.raises(RuntimeError):
         notifier.send([make_notice()])
+
+
+class FakeSMTP:
+    def __init__(self):
+        self.sent = []
+        self.logged_in = None
+        self.started_tls = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def starttls(self):
+        self.started_tls = True
+
+    def login(self, user, password):
+        self.logged_in = (user, password)
+
+    def send_message(self, message):
+        self.sent.append(message)
+
+
+def make_email_notifier(smtp, **overrides):
+    kwargs = dict(
+        host="smtp.mail.me.com",
+        port=587,
+        user="me@icloud.com",
+        password="app-password",
+        recipient="me@icloud.com",
+        target_city="Fiktingen",
+        smtp_client_factory=lambda host, port: smtp,
+    )
+    kwargs.update(overrides)
+    return EmailNotifier(**kwargs)
+
+
+def test_email_notifier_sends_one_message_via_smtp():
+    smtp = FakeSMTP()
+    notifier = make_email_notifier(smtp)
+
+    notifier.send([make_notice(id=1), make_notice(id=2)])
+
+    assert smtp.logged_in == ("me@icloud.com", "app-password")
+    assert smtp.started_tls is True
+    assert len(smtp.sent) == 1
+    sent = smtp.sent[0]
+    assert sent["To"] == "me@icloud.com"
+    body = sent.get_content()
+    assert body.startswith("Es ist eine neue Traueranzeige für Fiktingen erschienen:")
+    assert "https://trauer.pnp.de/traueranzeige/1" in body
+    assert "https://trauer.pnp.de/traueranzeige/2" in body
+    assert "Mustermann" not in body
+
+
+def test_email_notifier_sends_nothing_for_empty_list():
+    smtp = FakeSMTP()
+    notifier = make_email_notifier(smtp)
+
+    notifier.send([])
+
+    assert smtp.sent == []

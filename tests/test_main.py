@@ -1,5 +1,10 @@
+import dataclasses
+
+import pytest
+
 from pnp_watcher.config import Config
-from pnp_watcher.main import run
+from pnp_watcher.main import build_notifier, run
+from pnp_watcher.notifier import EmailNotifier, TelegramNotifier
 from pnp_watcher.state import State
 
 
@@ -8,8 +13,14 @@ def make_config(tmp_path, target_city="Fiktingen"):
         target_city=target_city,
         edition_id=8,
         lookback_days=14,
+        notification_channel="telegram",
         telegram_bot_token="123:ABC",
         telegram_chat_id="42",
+        smtp_host="smtp.mail.me.com",
+        smtp_port=587,
+        smtp_user="me@example.com",
+        smtp_password="secret",
+        notify_email_to="me@example.com",
         state_path=str(tmp_path / "state.json"),
     )
 
@@ -75,3 +86,41 @@ def test_run_does_not_notify_when_no_new_matches(tmp_path):
     run(config, notifier=notifier, fetch_editions=lambda: iter(editions), today="2026-07-14")
 
     assert notifier.sent_batches == []
+
+
+def test_build_notifier_returns_telegram_notifier_for_telegram_channel(tmp_path):
+    config = make_config(tmp_path)
+    config = dataclasses.replace(config, notification_channel="telegram")
+
+    notifier = build_notifier(config)
+
+    assert isinstance(notifier, TelegramNotifier)
+
+
+def test_build_notifier_returns_email_notifier_for_email_channel(tmp_path):
+    config = make_config(tmp_path)
+    config = dataclasses.replace(config, notification_channel="email")
+
+    notifier = build_notifier(config)
+
+    assert isinstance(notifier, EmailNotifier)
+
+
+def test_build_notifier_raises_when_telegram_credentials_missing(tmp_path):
+    config = make_config(tmp_path)
+    config = dataclasses.replace(
+        config, notification_channel="telegram", telegram_bot_token="", telegram_chat_id=""
+    )
+
+    with pytest.raises(ValueError):
+        build_notifier(config)
+
+
+def test_build_notifier_raises_when_email_credentials_missing(tmp_path):
+    config = make_config(tmp_path)
+    config = dataclasses.replace(
+        config, notification_channel="email", smtp_user="", smtp_password=""
+    )
+
+    with pytest.raises(ValueError):
+        build_notifier(config)

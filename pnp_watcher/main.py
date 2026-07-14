@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .config import Config
 from .matcher import matches
-from .notifier import TelegramNotifier, format_digest
+from .notifier import EmailNotifier, TelegramNotifier, format_digest
 from .pnp_client import iter_recent_editions
 from .state import State
 
@@ -58,12 +58,42 @@ def run(config: Config, notifier, fetch_editions=None, today: str | None = None)
     return new_matches
 
 
+def build_notifier(config: Config):
+    """Build the real (non-dry-run) notifier for config.notification_channel.
+    Raises ValueError if the required credentials for that channel are missing."""
+    if config.notification_channel == "email":
+        if not config.smtp_user or not config.smtp_password or not config.notify_email_to:
+            raise ValueError(
+                "SMTP_USER, SMTP_PASSWORD and NOTIFY_EMAIL_TO must be set in .env "
+                "for NOTIFICATION_CHANNEL=email (or use --dry-run to test without sending)."
+            )
+        return EmailNotifier(
+            host=config.smtp_host,
+            port=config.smtp_port,
+            user=config.smtp_user,
+            password=config.smtp_password,
+            recipient=config.notify_email_to,
+            target_city=config.target_city,
+        )
+
+    if not config.telegram_bot_token or not config.telegram_chat_id:
+        raise ValueError(
+            "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in .env "
+            "for NOTIFICATION_CHANNEL=telegram (or use --dry-run to test without Telegram)."
+        )
+    return TelegramNotifier(
+        bot_token=config.telegram_bot_token,
+        chat_id=config.telegram_chat_id,
+        target_city=config.target_city,
+    )
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="PNP Trauerportal Watcher (Landkreis Regen)")
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Run the check but skip the real Telegram send (log output only).",
+        help="Run the check but skip the real send (log output only).",
     )
     parser.add_argument(
         "--reset",
@@ -90,17 +120,11 @@ def main(argv=None) -> int:
     if args.dry_run:
         notifier = DryRunNotifier()
     else:
-        if not config.telegram_bot_token or not config.telegram_chat_id:
-            logger.error(
-                "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in .env "
-                "(or use --dry-run to test without Telegram)."
-            )
+        try:
+            notifier = build_notifier(config)
+        except ValueError as exc:
+            logger.error(str(exc))
             return 1
-        notifier = TelegramNotifier(
-            bot_token=config.telegram_bot_token,
-            chat_id=config.telegram_chat_id,
-            target_city=config.target_city,
-        )
 
     try:
         new_matches = run(config, notifier)
