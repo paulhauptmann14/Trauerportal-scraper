@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .config import Config
 from .matcher import matches
-from .notifier import EmailNotifier, TelegramNotifier, format_digest
+from .notifier import CompositeNotifier, EmailNotifier, TelegramNotifier, format_digest
 from .pnp_client import iter_recent_editions
 from .state import State
 
@@ -58,24 +58,23 @@ def run(config: Config, notifier, fetch_editions=None, today: str | None = None)
     return new_matches
 
 
-def build_notifier(config: Config):
-    """Build the real (non-dry-run) notifier for config.notification_channel.
-    Raises ValueError if the required credentials for that channel are missing."""
-    if config.notification_channel == "email":
-        if not config.smtp_user or not config.smtp_password or not config.notify_email_to:
-            raise ValueError(
-                "SMTP_USER, SMTP_PASSWORD and NOTIFY_EMAIL_TO must be set in .env "
-                "for NOTIFICATION_CHANNEL=email (or use --dry-run to test without sending)."
-            )
-        return EmailNotifier(
-            host=config.smtp_host,
-            port=config.smtp_port,
-            user=config.smtp_user,
-            password=config.smtp_password,
-            recipient=config.notify_email_to,
-            target_city=config.target_city,
+def _build_email_notifier(config: Config) -> EmailNotifier:
+    if not config.smtp_user or not config.smtp_password or not config.notify_email_to:
+        raise ValueError(
+            "SMTP_USER, SMTP_PASSWORD and NOTIFY_EMAIL_TO must be set in .env "
+            "for NOTIFICATION_CHANNEL=email (or use --dry-run to test without sending)."
         )
+    return EmailNotifier(
+        host=config.smtp_host,
+        port=config.smtp_port,
+        user=config.smtp_user,
+        password=config.smtp_password,
+        recipient=config.notify_email_to,
+        target_city=config.target_city,
+    )
 
+
+def _build_telegram_notifier(config: Config) -> TelegramNotifier:
     if not config.telegram_bot_token or not config.telegram_chat_id:
         raise ValueError(
             "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in .env "
@@ -86,6 +85,23 @@ def build_notifier(config: Config):
         chat_id=config.telegram_chat_id,
         target_city=config.target_city,
     )
+
+
+_CHANNEL_BUILDERS = {
+    "email": _build_email_notifier,
+    "telegram": _build_telegram_notifier,
+}
+
+
+def build_notifier(config: Config):
+    """Build the real (non-dry-run) notifier for config.notification_channels.
+    A single channel returns that channel's notifier directly; multiple
+    channels are combined via CompositeNotifier so all of them get sent to.
+    Raises ValueError if the required credentials for any channel are missing."""
+    notifiers = [_CHANNEL_BUILDERS[channel](config) for channel in config.notification_channels]
+    if len(notifiers) == 1:
+        return notifiers[0]
+    return CompositeNotifier(notifiers)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

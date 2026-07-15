@@ -1,8 +1,8 @@
 # PNP Trauerportal Watcher
 
 Watches trauer.pnp.de for new obituaries in Landkreis Regen for a
-configured town and sends a notification — via Telegram or email,
-your choice — on a match.
+configured town and sends a notification — via Telegram, email, or
+both — on a match.
 
 ## Architecture
 
@@ -17,9 +17,11 @@ pnp_watcher/
                    (case-insensitive substring match).
   state.py         Tracks which notice IDs have already been seen, persisted
                    in state.json, so nothing is reported twice.
-  notifier.py      Sends the notification — TelegramNotifier or
-                   EmailNotifier, picked via NOTIFICATION_CHANNEL — just a
-                   link per matching notice, no names/towns/dates.
+  notifier.py      Sends the notification — TelegramNotifier and/or
+                   EmailNotifier, picked via NOTIFICATION_CHANNEL (comma-
+                   separated for multiple), combined via CompositeNotifier
+                   if more than one — just a link per matching notice, no
+                   names/towns/dates.
   main.py          CLI entry point (--dry-run, --reset) that wires the above
                    together into a single run.
 tests/             Unit tests per module, plus recorded API fixtures under
@@ -37,7 +39,8 @@ tests/             Unit tests per module, plus recorded API fixtures under
 ```
 
 Then edit `.env`: fill in `TARGET_CITY`, set `NOTIFICATION_CHANNEL` to
-`telegram` or `email`, and fill in the matching credentials below it:
+`telegram`, `email`, or both comma-separated (`telegram,email`) to send via
+both, and fill in the matching credentials below it:
 - telegram: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (create a bot via
   @BotFather, find your chat ID e.g. via
   `https://api.telegram.org/bot<TOKEN>/getUpdates` after messaging the bot)

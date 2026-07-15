@@ -4,7 +4,7 @@ import pytest
 
 from pnp_watcher.config import Config
 from pnp_watcher.main import build_notifier, run
-from pnp_watcher.notifier import EmailNotifier, TelegramNotifier
+from pnp_watcher.notifier import CompositeNotifier, EmailNotifier, TelegramNotifier
 from pnp_watcher.state import State
 
 
@@ -13,7 +13,7 @@ def make_config(tmp_path, target_city="Fiktingen"):
         target_city=target_city,
         edition_id=8,
         lookback_days=14,
-        notification_channel="telegram",
+        notification_channels=("telegram",),
         telegram_bot_token="123:ABC",
         telegram_chat_id="42",
         smtp_host="smtp.mail.me.com",
@@ -90,7 +90,7 @@ def test_run_does_not_notify_when_no_new_matches(tmp_path):
 
 def test_build_notifier_returns_telegram_notifier_for_telegram_channel(tmp_path):
     config = make_config(tmp_path)
-    config = dataclasses.replace(config, notification_channel="telegram")
+    config = dataclasses.replace(config, notification_channels=("telegram",))
 
     notifier = build_notifier(config)
 
@@ -99,17 +99,29 @@ def test_build_notifier_returns_telegram_notifier_for_telegram_channel(tmp_path)
 
 def test_build_notifier_returns_email_notifier_for_email_channel(tmp_path):
     config = make_config(tmp_path)
-    config = dataclasses.replace(config, notification_channel="email")
+    config = dataclasses.replace(config, notification_channels=("email",))
 
     notifier = build_notifier(config)
 
     assert isinstance(notifier, EmailNotifier)
 
 
+def test_build_notifier_returns_composite_notifier_for_multiple_channels(tmp_path):
+    config = make_config(tmp_path)
+    config = dataclasses.replace(config, notification_channels=("telegram", "email"))
+
+    notifier = build_notifier(config)
+
+    assert isinstance(notifier, CompositeNotifier)
+    assert len(notifier._notifiers) == 2
+    assert isinstance(notifier._notifiers[0], TelegramNotifier)
+    assert isinstance(notifier._notifiers[1], EmailNotifier)
+
+
 def test_build_notifier_raises_when_telegram_credentials_missing(tmp_path):
     config = make_config(tmp_path)
     config = dataclasses.replace(
-        config, notification_channel="telegram", telegram_bot_token="", telegram_chat_id=""
+        config, notification_channels=("telegram",), telegram_bot_token="", telegram_chat_id=""
     )
 
     with pytest.raises(ValueError):
@@ -119,7 +131,17 @@ def test_build_notifier_raises_when_telegram_credentials_missing(tmp_path):
 def test_build_notifier_raises_when_email_credentials_missing(tmp_path):
     config = make_config(tmp_path)
     config = dataclasses.replace(
-        config, notification_channel="email", smtp_user="", smtp_password=""
+        config, notification_channels=("email",), smtp_user="", smtp_password=""
+    )
+
+    with pytest.raises(ValueError):
+        build_notifier(config)
+
+
+def test_build_notifier_raises_when_any_channel_in_composite_is_missing_credentials(tmp_path):
+    config = make_config(tmp_path)
+    config = dataclasses.replace(
+        config, notification_channels=("telegram", "email"), smtp_user="", smtp_password=""
     )
 
     with pytest.raises(ValueError):

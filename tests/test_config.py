@@ -1,6 +1,6 @@
 import pytest
 
-from pnp_watcher.config import Config
+from pnp_watcher.config import Config, parse_notification_channels
 
 
 def clear_pnp_env(monkeypatch):
@@ -48,7 +48,7 @@ def test_load_applies_defaults(monkeypatch, tmp_path):
     assert config.target_city == "Fiktingen"
     assert config.edition_id == 8
     assert config.lookback_days == 14
-    assert config.notification_channel == "telegram"
+    assert config.notification_channels == ("telegram",)
     assert config.telegram_bot_token == ""
     assert config.telegram_chat_id == ""
     assert config.smtp_host == "smtp.mail.me.com"
@@ -81,7 +81,18 @@ def test_load_normalizes_notification_channel_case(monkeypatch, tmp_path):
 
     config = Config.load()
 
-    assert config.notification_channel == "email"
+    assert config.notification_channels == ("email",)
+
+
+def test_load_parses_multiple_notification_channels(monkeypatch, tmp_path):
+    clear_pnp_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TARGET_CITY", "Fiktingen")
+    monkeypatch.setenv("NOTIFICATION_CHANNEL", "telegram, Email")
+
+    config = Config.load()
+
+    assert config.notification_channels == ("telegram", "email")
 
 
 def test_load_reads_email_overrides(monkeypatch, tmp_path):
@@ -112,3 +123,29 @@ def test_load_raises_on_invalid_notification_channel(monkeypatch, tmp_path):
 
     with pytest.raises(ValueError):
         Config.load()
+
+
+def test_parse_notification_channels_single():
+    assert parse_notification_channels("telegram") == ("telegram",)
+
+
+def test_parse_notification_channels_multiple_comma_separated():
+    assert parse_notification_channels("telegram,email") == ("telegram", "email")
+
+
+def test_parse_notification_channels_strips_whitespace_and_lowercases():
+    assert parse_notification_channels(" Telegram , Email ") == ("telegram", "email")
+
+
+def test_parse_notification_channels_dedupes_preserving_order():
+    assert parse_notification_channels("telegram,email,telegram") == ("telegram", "email")
+
+
+def test_parse_notification_channels_raises_on_unknown_channel():
+    with pytest.raises(ValueError):
+        parse_notification_channels("telegram,sms")
+
+
+def test_parse_notification_channels_raises_on_empty_string():
+    with pytest.raises(ValueError):
+        parse_notification_channels("")

@@ -74,3 +74,16 @@ class EmailNotifier:
             smtp.starttls()
             smtp.login(self.user, self.password)
             smtp.send_message(message)
+
+
+class CompositeNotifier:
+    """Sends via multiple notifiers. If one raises, the rest of that run's
+    sends are skipped and the exception propagates — same as a single
+    notifier failing, so the whole run is retried next time (see main.run)."""
+
+    def __init__(self, notifiers: list):
+        self._notifiers = notifiers
+
+    def send(self, notices: list[dict]) -> None:
+        for notifier in self._notifiers:
+            notifier.send(notices)

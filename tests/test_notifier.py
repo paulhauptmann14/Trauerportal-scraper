@@ -1,6 +1,6 @@
 import pytest
 
-from pnp_watcher.notifier import EmailNotifier, TelegramNotifier, format_digest
+from pnp_watcher.notifier import CompositeNotifier, EmailNotifier, TelegramNotifier, format_digest
 
 
 def make_notice(id=1, vname="Max", nname="Mustermann", wohnort="Fiktingen", sterbetag="2026-07-14"):
@@ -156,3 +156,35 @@ def test_email_notifier_sends_nothing_for_empty_list():
     notifier.send([])
 
     assert smtp.sent == []
+
+
+class RecordingNotifier:
+    def __init__(self, fail=False):
+        self.fail = fail
+        self.sent_batches = []
+
+    def send(self, notices):
+        if self.fail:
+            raise RuntimeError("boom")
+        self.sent_batches.append(notices)
+
+
+def test_composite_notifier_sends_via_all_notifiers():
+    telegram = RecordingNotifier()
+    email = RecordingNotifier()
+    notifier = CompositeNotifier([telegram, email])
+
+    notices = [make_notice(id=1)]
+    notifier.send(notices)
+
+    assert telegram.sent_batches == [notices]
+    assert email.sent_batches == [notices]
+
+
+def test_composite_notifier_propagates_failure_from_any_notifier():
+    telegram = RecordingNotifier()
+    email = RecordingNotifier(fail=True)
+    notifier = CompositeNotifier([telegram, email])
+
+    with pytest.raises(RuntimeError):
+        notifier.send([make_notice()])
