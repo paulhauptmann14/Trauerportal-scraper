@@ -1,29 +1,10 @@
-import logging
 import os
-import stat
 from dataclasses import dataclass
 
 from dotenv import find_dotenv, load_dotenv
 
-logger = logging.getLogger("pnp_watcher")
-
 REGEN_EDITION_ID = 8
 VALID_NOTIFICATION_CHANNELS = {"telegram", "email"}
-
-
-def check_env_permissions(path: str) -> str | None:
-    """Return a warning if the .env file (which holds the Telegram token) is
-    readable/writable by anyone other than the owner, else None."""
-    if not path or not os.path.exists(path):
-        return None
-
-    mode = stat.S_IMODE(os.stat(path).st_mode)
-    if mode & (stat.S_IRWXG | stat.S_IRWXO):
-        return (
-            f"{path} is readable by group/others (mode {oct(mode)}) but contains "
-            f"the Telegram bot token. Recommended: chmod 600 {path}"
-        )
-    return None
 
 
 @dataclass
@@ -43,12 +24,7 @@ class Config:
 
     @classmethod
     def load(cls) -> "Config":
-        dotenv_path = find_dotenv(usecwd=True)
-        load_dotenv(dotenv_path)
-
-        warning = check_env_permissions(dotenv_path)
-        if warning:
-            logger.warning(warning)
+        load_dotenv(find_dotenv(usecwd=True))
 
         target_city = os.environ.get("TARGET_CITY", "").strip()
         if not target_city or target_city == "YOUR_TOWN":

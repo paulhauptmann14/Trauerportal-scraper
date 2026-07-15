@@ -1,9 +1,6 @@
-import os
-import stat
-
 import pytest
 
-from pnp_watcher.config import Config, check_env_permissions
+from pnp_watcher.config import Config
 
 
 def clear_pnp_env(monkeypatch):
@@ -115,29 +112,3 @@ def test_load_raises_on_invalid_notification_channel(monkeypatch, tmp_path):
 
     with pytest.raises(ValueError):
         Config.load()
-
-
-def test_check_env_permissions_flags_group_readable_file(tmp_path):
-    path = tmp_path / ".env"
-    path.write_text("TELEGRAM_BOT_TOKEN=secret\n")
-    os.chmod(path, 0o644)
-
-    warning = check_env_permissions(str(path))
-
-    assert warning is not None
-    assert str(path) in warning
-
-
-def test_check_env_permissions_accepts_owner_only_file(tmp_path):
-    path = tmp_path / ".env"
-    path.write_text("TELEGRAM_BOT_TOKEN=secret\n")
-    os.chmod(path, 0o600)
-
-    warning = check_env_permissions(str(path))
-
-    assert warning is None
-
-
-def test_check_env_permissions_ignores_missing_file():
-    assert check_env_permissions("") is None
-    assert check_env_permissions("/nonexistent/.env") is None
